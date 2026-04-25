@@ -1,5 +1,11 @@
-"""pick_render_mode() — HOT profile + <1 day old → GET; else RENDER.
-
-Implemented in Phase 2.
-"""
 from __future__ import annotations
+
+import hashlib
+
+
+def content_fingerprint(html: str) -> str:
+    return hashlib.sha256(html.encode()).hexdigest()[:32]
+
+
+def has_content_changed(html: str, previous_fingerprint: str) -> bool:
+    return content_fingerprint(html) != previous_fingerprint
