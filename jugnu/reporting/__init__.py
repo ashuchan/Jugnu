@@ -1,2 +1,5 @@
-"""Reporting layer — per-URL and run-level markdown/JSON reports."""
 from __future__ import annotations
+
+from jugnu.reporting.report_builder import build_report
+
+__all__ = ["build_report"]
