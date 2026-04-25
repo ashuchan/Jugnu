@@ -4,6 +4,7 @@ import json
 from collections import Counter
 from datetime import UTC, datetime
 
+from jugnu.spark.input_metadata import render_negative_keywords
 from jugnu.spark.prompts import render_template
 from jugnu.spark.provider import LLMProvider
 from jugnu.spark.skill_memory import ConsolidationLogEntry, SkillMemory
@@ -29,6 +30,7 @@ class MemoryConsolidator:
         general_instructions: str = "",
         output_fields: list[str] | None = None,
         minimum_fields: list[str] | None = None,
+        negative_keywords: list[str] | None = None,
     ) -> SkillMemory:
         if not memory.pending_signals:
             return memory
@@ -55,6 +57,7 @@ class MemoryConsolidator:
             success_count=success_count,
             tier_distribution=", ".join(f"{k}={v}" for k, v in tiers.most_common()) or "(none)",
             platforms_seen=", ".join(platforms_seen) or "(none)",
+            negative_keywords=render_negative_keywords(negative_keywords),
         )
         response = await self._provider.complete(
             [{"role": "user", "content": prompt}],
@@ -73,6 +76,11 @@ class MemoryConsolidator:
                 summary = str(data.get("summary", ""))
             except json.JSONDecodeError:
                 pass
+
+        # Always honor caller-supplied negative_keywords as a noise floor.
+        for kw in negative_keywords or []:
+            if kw and kw not in memory.known_noise_patterns:
+                memory.known_noise_patterns.append(kw)
 
         memory.memory_version += 1
         memory.total_consolidation_cost_usd += cost

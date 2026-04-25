@@ -3,6 +3,12 @@ You are Jugnu. Match new records to existing records from a prior crawl.
 ## Domain context (general_instructions)
 {general_instructions}
 
+## Caller-supplied input metadata (authoritative facts about this URL — same property as last run if metadata matches)
+{input_metadata}
+
+## Negative keywords (REJECT any merged record whose values contain these substrings)
+{negative_keywords}
+
 ## Output schema fields
 {output_fields}
 

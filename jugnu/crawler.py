@@ -6,9 +6,14 @@ from pathlib import Path
 from jugnu.contracts import Blink, CrawlInput, CrawlStatus
 from jugnu.dlq import DeadLetterQueue
 from jugnu.ember.fetcher import Ember
+from jugnu.ember.proxy import ProxyProvider, build_proxy_provider_from_settings
 from jugnu.ember.rate_limiter import RateLimiter
 from jugnu.glow.resolver import GlowResolver
-from jugnu.glow.schema_normalizer import normalize_record
+from jugnu.glow.schema_normalizer import (
+    filter_records_by_negative_keywords,
+    normalize_record,
+)
+from jugnu.lantern.api_heuristics import looks_like_api_endpoint
 from jugnu.lantern.discovery import Lantern
 from jugnu.observability.cost_ledger import CostLedger
 from jugnu.observability.trace import EventKind, configure_sink, emit
@@ -34,15 +39,20 @@ class Jugnu:
 
     Per-URL pipeline:
       1. Fetch via Ember (carry-forward on failure when prior records exist).
-      2. Deterministic extraction via Glow tier cascade.
-      3. If empty: Prompt-2 LLM extraction.
-      4. If still missing minimum_fields and max_external_depth > 0: Prompt-4 ranks
-         external links (the actual crawl of those links is left to the caller — we
-         emit ranked candidates in blink.metadata).
-      5. If CrawlInput.previous_records is non-empty AND new records exist:
+      2. Lantern discovers candidate links and APIs from the fetched page.
+      3. Deterministic extraction via Glow tier cascade (informed by profile +
+         SkillMemory).
+      4. If empty: Prompt-1 ranks discovered candidates so a downstream caller
+         (or future internal BFS) can hop to the highest-confidence link.
+         Navigation hints land on `Blink.llm_interactions`.
+      5. If still empty: Prompt-2 LLM extraction.
+      6. If still missing minimum_fields and max_external_depth > 0: Prompt-4
+         ranks external links (the actual crawl of those links is left to the
+         caller — we emit ranked candidates in blink.llm_interactions).
+      7. If CrawlInput.previous_records is non-empty AND new records exist:
          Prompt-3 merge resolves new vs existing.
-      6. Profile update + identity assignment + schema gate.
-      7. _maybe_consolidate: Prompt-6 fires on batch / smart trigger.
+      8. Profile update + identity assignment + schema gate.
+      9. _maybe_consolidate: Prompt-6 fires on batch / smart trigger.
 
     Run-end: any remaining pending_signals are consolidated with trigger='run_end'.
     Every Blink carries blink.llm_profile = the (mutated) SkillMemory.
@@ -55,11 +65,16 @@ class Jugnu:
         profile_store: ProfileStore | None = None,
         cost_ledger_path: str | Path | None = None,
         trace_path: str | Path | None = None,
+        proxy_provider: ProxyProvider | None = None,
     ) -> None:
         self._skill = skill
         self._memory = skill_memory
         self._profile_store = profile_store or ProfileStore()
         self._provider = LLMProvider.from_settings(skill.llm_settings)
+        self._proxy_provider: ProxyProvider = (
+            proxy_provider
+            or build_proxy_provider_from_settings(skill.proxy_settings)
+        )
         self._warmup = WarmupOrchestrator(self._provider)
         self._discovery = DiscoveryLLM(self._provider)
         self._extractor = ExtractionLLM(self._provider)
@@ -103,6 +118,7 @@ class Jugnu:
             general_instructions=self._skill.custom_instructions,
             source_hints=[h.model_dump(mode="json") for h in self._skill.source_hints],
             existing_memory=self._memory,
+            negative_keywords=self._skill.negative_keywords,
         )
         emit(
             EventKind.WARMUP_COMPLETE,
@@ -136,6 +152,7 @@ class Jugnu:
                 general_instructions=self._skill.custom_instructions,
                 output_fields=self._skill.output_schema.fields,
                 minimum_fields=self._skill.output_schema.minimum_fields,
+                negative_keywords=self._skill.negative_keywords,
             )
             self._consolidations_fired += 1
             emit(
@@ -160,9 +177,16 @@ class Jugnu:
         errors: list[str] = []
         prior_records = list(inp.previous_records or [])
         carry_records = list(inp.carry_forward_records or prior_records)
+        input_metadata = dict(inp.metadata or {})
+        negative_keywords = list(self._skill.negative_keywords or [])
         try:
             rate_limiter = RateLimiter(requests_per_second=1.0, burst=3)
-            ember = Ember(rate_limiter=rate_limiter, timeout_ms=30_000, max_retries=1)
+            ember = Ember(
+                rate_limiter=rate_limiter,
+                proxy_provider=self._proxy_provider,
+                timeout_ms=30_000,
+                max_retries=1,
+            )
             fetch_result = await ember.fetch(url)
 
             if not fetch_result.success:
@@ -184,11 +208,39 @@ class Jugnu:
                     llm_profile=self._memory,
                 )
 
-            # Glow: deterministic extraction first, informed by profile + SkillMemory
             existing_profile = (
                 inp.scrape_profile
                 or self._profile_store.load(url)
             )
+            url_specific_noise = (
+                list(existing_profile.api_hints.blocked_endpoints)
+                if existing_profile
+                else []
+            )
+
+            # Lantern discovery — surface link/API candidates once, share with
+            # both Prompt-1 and the eventual Prompt-4 external ranker.
+            lantern = Lantern(
+                keywords=(
+                    self._memory.high_confidence_link_keywords if self._memory else None
+                ),
+                api_patterns=(
+                    self._memory.high_confidence_api_patterns if self._memory else None
+                ),
+                negative_keywords=negative_keywords,
+            )
+            discovery_result = lantern.discover(fetch_result)
+            api_candidates = [
+                {"url": u, "score": 1.0}
+                for u in discovery_result.api_endpoints[:25]
+            ]
+            link_candidates = [
+                {"href": link, "score": score}
+                for link, score in discovery_result.ranked_links[:25]
+                if not looks_like_api_endpoint(link)
+            ]
+
+            # Glow: deterministic extraction first, informed by profile + SkillMemory
             resolver = GlowResolver()
             adapter_result = await resolver.resolve(
                 fetch_result,
@@ -214,6 +266,32 @@ class Jugnu:
             confidence = adapter_result.confidence
             llm_cost = adapter_result.llm_cost_usd
 
+            # Prompt-1 discovery — runs whenever deterministic extraction came
+            # back empty, so navigation_hint and ranked_apis are available to
+            # the runner-side hop loop (and to future internal BFS work).
+            discovery_payload: dict | None = None
+            if not records:
+                discovery_payload = await self._discovery.discover(
+                    fetch_result=fetch_result,
+                    general_instructions=self._skill.custom_instructions,
+                    output_fields=self._skill.output_schema.fields,
+                    minimum_fields=self._skill.output_schema.minimum_fields,
+                    api_candidates=api_candidates,
+                    link_candidates=link_candidates,
+                    memory=self._memory,
+                    skill_name=self._skill.name,
+                    input_metadata=input_metadata,
+                    negative_keywords=negative_keywords,
+                    url_specific_noise=url_specific_noise,
+                )
+                llm_cost += float(discovery_payload.get("cost_usd") or 0.0)
+                self._record_signal(discovery_payload.get("improvement_signal"))
+                # Promote discovery's misleading_patterns to per-URL blocked_endpoints
+                # so future runs short-circuit on the same noisy URL.
+                self._record_blocked_endpoints(
+                    existing_profile, discovery_payload.get("improvement_signal")
+                )
+
             # Prompt-2 LLM extraction if deterministic came back empty.
             llm_field_mappings: dict | None = None
             llm_field_mapping_notes = ""
@@ -227,6 +305,8 @@ class Jugnu:
                     general_instructions=self._skill.custom_instructions,
                     custom_instructions=self._skill.custom_instructions,
                     skill_name=self._skill.name,
+                    input_metadata=input_metadata,
+                    negative_keywords=negative_keywords,
                 )
                 records = llm_result.get("records") or []
                 tier = "llm_extraction"
@@ -241,23 +321,18 @@ class Jugnu:
             if synonyms:
                 records = [normalize_record(r, synonyms) for r in records if isinstance(r, dict)]
 
+            # Final safety net — drop records still carrying negative_keyword
+            # substrings even if Prompt-2 ignored the instruction.
+            records = filter_records_by_negative_keywords(records, negative_keywords)
+
             # Prompt-4 external rank if minimum fields still unmet.
             external_candidates: list[dict] = []
             settings = self._skill.jugnu_settings
             missing_fields = self._missing_minimum_fields(records)
             if missing_fields and settings.max_external_depth > 0:
-                mem_keywords = self._memory.high_confidence_link_keywords if self._memory else None
-                mem_api_patterns = (
-                    self._memory.high_confidence_api_patterns if self._memory else None
-                )
-                lantern = Lantern(
-                    keywords=mem_keywords,
-                    api_patterns=mem_api_patterns,
-                )
-                discovered = lantern.discover(fetch_result)
                 external_links = [
                     {"url": link, "score": score}
-                    for link, score in discovered.ranked_links[:25]
+                    for link, score in discovery_result.ranked_links[:25]
                 ]
                 if external_links:
                     ext_result = await self._external_ranker.rank_external(
@@ -271,6 +346,8 @@ class Jugnu:
                         memory=self._memory,
                         url=url,
                         skill_name=self._skill.name,
+                        input_metadata=input_metadata,
+                        negative_keywords=negative_keywords,
                     )
                     external_candidates = ext_result.get("ranked_external_links") or []
                     llm_cost += float(ext_result.get("cost_usd") or 0.0)
@@ -306,11 +383,14 @@ class Jugnu:
                     skill_name=self._skill.name,
                     output_fields=self._skill.output_schema.fields,
                     minimum_fields=self._skill.output_schema.minimum_fields,
+                    input_metadata=input_metadata,
+                    negative_keywords=negative_keywords,
                 )
                 merge_decisions = merge_result.get("merge_decisions") or []
                 llm_cost += float(merge_result.get("cost_usd") or 0.0)
                 if merge_result.get("merged_records"):
                     records = merge_result["merged_records"]
+                    records = filter_records_by_negative_keywords(records, negative_keywords)
                 emit(
                     EventKind.MERGE_INVOKED,
                     url=url,
@@ -350,13 +430,20 @@ class Jugnu:
                 llm_profile=self._memory,
                 scrape_profile=profile,
             )
-            if external_candidates or merge_decisions:
-                blink.llm_interactions.append(
-                    {
-                        "external_candidates": external_candidates,
-                        "merge_decisions": merge_decisions,
-                    }
-                )
+            interactions: dict = {}
+            if discovery_payload:
+                interactions["discovery"] = {
+                    "ranked_apis": discovery_payload.get("ranked_apis") or [],
+                    "ranked_links": discovery_payload.get("ranked_links") or [],
+                    "navigation_hint": discovery_payload.get("navigation_hint", ""),
+                    "platform_guess": discovery_payload.get("platform_guess"),
+                }
+            if external_candidates:
+                interactions["external_candidates"] = external_candidates
+            if merge_decisions:
+                interactions["merge_decisions"] = merge_decisions
+            if interactions:
+                blink.llm_interactions.append(interactions)
             return blink
         except Exception as exc:  # noqa: BLE001
             errors.append(str(exc))
@@ -382,6 +469,33 @@ class Jugnu:
     def _record_signal(self, signal: object) -> None:
         if isinstance(signal, ImprovementSignal) and self._memory is not None:
             self._memory.add_signal(signal)
+
+    def _record_blocked_endpoints(
+        self,
+        profile: ScrapeProfile | None,
+        signal: object,
+    ) -> None:
+        """Promote Prompt-1's misleading_patterns to per-URL blocked_endpoints.
+
+        Only acts when we have a profile to mutate. The patterns also flow
+        through the SkillMemory ImprovementSignal, where Prompt-6 may promote
+        them to skill-wide known_noise_patterns.
+        """
+        if profile is None or not isinstance(signal, ImprovementSignal):
+            return
+        # The discovery LLM packs misleading_patterns into raw_context.
+        raw = signal.raw_context or ""
+        if "misleading_patterns" not in raw:
+            return
+        try:
+            import json as _json
+
+            payload = _json.loads(raw)
+        except (ValueError, TypeError):
+            return
+        for pattern in payload.get("misleading_patterns") or []:
+            if pattern and pattern not in profile.api_hints.blocked_endpoints:
+                profile.api_hints.blocked_endpoints.append(str(pattern))
 
     def _missing_minimum_fields(self, records: list[dict]) -> list[str]:
         required = self._skill.output_schema.minimum_fields or []
@@ -409,6 +523,7 @@ class Jugnu:
                 general_instructions=self._skill.custom_instructions,
                 output_fields=self._skill.output_schema.fields,
                 minimum_fields=self._skill.output_schema.minimum_fields,
+                negative_keywords=self._skill.negative_keywords,
             )
             self._consolidations_fired += 1
             emit(
@@ -436,6 +551,7 @@ class Jugnu:
                 general_instructions=self._skill.custom_instructions,
                 output_fields=self._skill.output_schema.fields,
                 minimum_fields=self._skill.output_schema.minimum_fields,
+                negative_keywords=self._skill.negative_keywords,
             )
             self._consolidations_fired += 1
             emit(

@@ -8,6 +8,10 @@ Prompt-2 returns `field_mappings` of the form:
 
 This module materialises those into the profile's ApiHints + DomHints +
 field_mappings list so future runs can replay deterministically (Tier 1a).
+
+Each LlmFieldMapping carries the per-field replay payload (api_url_pattern,
+json_paths, response_envelope, dom_selector, success_count) so the Tier-1a
+replay adapter can re-issue the API and walk the JSON without an LLM.
 """
 from __future__ import annotations
 
@@ -33,22 +37,33 @@ def crystallize(
     dom_block = field_mappings.get("dom") or {}
     timestamp = datetime.now(UTC).isoformat()
 
+    api_url_pattern: str | None = None
+    api_envelope: str | None = None
+    api_json_paths: dict[str, str] = {}
     if isinstance(api_block, dict):
         url_pattern = api_block.get("url_pattern")
-        if url_pattern and url_pattern not in profile.api_hints.confirmed_patterns:
-            profile.api_hints.confirmed_patterns.append(url_pattern)
+        if url_pattern:
+            api_url_pattern = str(url_pattern)
+            if api_url_pattern not in profile.api_hints.confirmed_patterns:
+                profile.api_hints.confirmed_patterns.append(api_url_pattern)
         envelope = api_block.get("response_envelope")
-        if envelope and not profile.api_hints.response_format:
-            profile.api_hints.response_format = str(envelope)
-        json_paths = api_block.get("json_paths") or {}
-        if isinstance(json_paths, dict):
-            for field, path in json_paths.items():
+        if envelope:
+            api_envelope = str(envelope)
+            if not profile.api_hints.response_format:
+                profile.api_hints.response_format = api_envelope
+        raw_paths = api_block.get("json_paths") or {}
+        if isinstance(raw_paths, dict):
+            api_json_paths = {str(k): str(v) for k, v in raw_paths.items() if v}
+            for field, path in api_json_paths.items():
                 _upsert_mapping(
                     profile,
                     field,
-                    hint=str(path),
+                    hint=path,
                     note=field_mapping_notes,
                     ts=timestamp,
+                    api_url_pattern=api_url_pattern,
+                    api_json_paths=api_json_paths,
+                    response_envelope=api_envelope,
                 )
 
     if isinstance(dom_block, dict):
@@ -65,6 +80,7 @@ def crystallize(
                     hint=str(css),
                     note=field_mapping_notes,
                     ts=timestamp,
+                    dom_selector=str(css),
                 )
 
     profile.updated_at = timestamp
@@ -77,6 +93,10 @@ def _upsert_mapping(
     hint: str,
     note: str,
     ts: str,
+    api_url_pattern: str | None = None,
+    api_json_paths: dict[str, str] | None = None,
+    response_envelope: str | None = None,
+    dom_selector: str | None = None,
 ) -> None:
     for mapping in profile.field_mappings:
         if mapping.field_name == field_name:
@@ -84,6 +104,14 @@ def _upsert_mapping(
             mapping.last_seen = ts
             if note and note not in mapping.synonyms:
                 mapping.synonyms.append(note)
+            if api_url_pattern:
+                mapping.api_url_pattern = api_url_pattern
+            if api_json_paths and field_name in api_json_paths:
+                mapping.json_paths = dict(api_json_paths)
+            if response_envelope and not mapping.response_envelope:
+                mapping.response_envelope = response_envelope
+            if dom_selector:
+                mapping.dom_selector = dom_selector
             return
     profile.field_mappings.append(
         LlmFieldMapping(
@@ -92,5 +120,10 @@ def _upsert_mapping(
             synonyms=[note] if note else [],
             confidence=0.7,
             last_seen=ts,
+            api_url_pattern=api_url_pattern,
+            json_paths=dict(api_json_paths) if api_json_paths else {},
+            response_envelope=response_envelope,
+            dom_selector=dom_selector,
+            success_count=0,
         )
     )

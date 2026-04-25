@@ -22,11 +22,17 @@ class KnownApiAdapter(BaseAdapter):
         self,
         learned_patterns: Iterable[str] | None = None,
         noise_patterns: Iterable[str] | None = None,
+        blocked_endpoints: Iterable[str] | None = None,
     ) -> None:
         self._learned = list(learned_patterns or [])
         self._noise = list(noise_patterns or [])
+        self._blocked = list(blocked_endpoints or [])
 
     async def can_handle(self, fetch_result: FetchResult) -> bool:
+        # Per-URL ScrapeProfile.api_hints.blocked_endpoints short-circuits before
+        # any heuristic check — caller learned this endpoint produces noise.
+        if any(b and b in fetch_result.url for b in self._blocked):
+            return False
         if not looks_like_data_api(
             fetch_result.url,
             content_type=fetch_result.content_type,

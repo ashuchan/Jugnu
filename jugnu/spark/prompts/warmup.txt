@@ -17,6 +17,9 @@ Minimum required fields: {minimum_fields}
 ## Known source patterns (source_hints)
 {source_hints_json}
 
+## Caller-supplied negative keywords (seed these into known_noise_patterns)
+{negative_keywords}
+
 Based on this Skill, synthesize domain-level wisdom:
 1. What API URL patterns typically expose this kind of data?
 2. What link keywords lead to pages with this data?

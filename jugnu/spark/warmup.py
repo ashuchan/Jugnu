@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from jugnu.spark.input_metadata import render_negative_keywords
 from jugnu.spark.prompts import render_template
 from jugnu.spark.provider import LLMProvider
 from jugnu.spark.skill_memory import SkillMemory
@@ -30,6 +31,7 @@ class WarmupOrchestrator:
         minimum_fields: list[str] | None = None,
         general_instructions: str = "",
         existing_memory: SkillMemory | None = None,
+        negative_keywords: list[str] | None = None,
     ) -> SkillMemory:
         if existing_memory and not existing_memory.is_stale_for(
             _SkillProxy(skill_name, skill_version)
@@ -45,6 +47,7 @@ class WarmupOrchestrator:
             output_fields=", ".join(output_fields) if output_fields else "(none)",
             minimum_fields=", ".join(minimum_fields or []) or "(none)",
             source_hints_json=json.dumps(source_hints or [], indent=2),
+            negative_keywords=render_negative_keywords(negative_keywords),
         )
         response = await self._provider.complete(
             [{"role": "user", "content": prompt}],
@@ -55,6 +58,10 @@ class WarmupOrchestrator:
         memory.warmup_cost_usd = float(response.get("cost_usd") or 0.0)
         if not response.get("error"):
             _apply_warmup_response(memory, response.get("content", ""))
+        # Always honor caller-supplied negative_keywords as a noise floor.
+        for kw in negative_keywords or []:
+            if kw and kw not in memory.known_noise_patterns:
+                memory.known_noise_patterns.append(kw)
         return memory
 
 

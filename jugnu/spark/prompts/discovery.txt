@@ -10,6 +10,9 @@ You are Jugnu. Rank these discovered links and APIs by likelihood of containing 
 Output schema fields: {output_fields}
 Minimum required fields (must be present in the result): {minimum_fields}
 
+## Caller-supplied input metadata (authoritative facts about this URL)
+{input_metadata}
+
 ## Source page
 URL: {url}
 Detected content type: {content_type}
@@ -25,6 +28,12 @@ Detected content type: {content_type}
 
 ## Known noise patterns to avoid
 {known_noise_patterns}
+
+## URL-specific noise (per-URL ScrapeProfile blocked endpoints — strongly downrank)
+{url_specific_noise}
+
+## Negative keywords (substrings to downrank in both link and API candidates)
+{negative_keywords}
 
 APIs are generally better sources than HTML links for structured data. Penalize
 URLs that match the known noise patterns. Reward URLs whose path matches the

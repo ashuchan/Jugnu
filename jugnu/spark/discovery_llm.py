@@ -4,6 +4,7 @@ import json
 
 from jugnu.contracts import FetchResult
 from jugnu.spark.content_cleaner import html_to_fit_markdown
+from jugnu.spark.input_metadata import render_input_metadata, render_negative_keywords
 from jugnu.spark.prompts import render_template
 from jugnu.spark.provider import LLMProvider
 from jugnu.spark.skill_memory import ImprovementSignal, SkillMemory
@@ -33,6 +34,9 @@ class DiscoveryLLM:
         link_candidates: list[dict] | list[str] | None = None,
         memory: SkillMemory | None = None,
         skill_name: str = "",
+        input_metadata: dict | None = None,
+        negative_keywords: list[str] | None = None,
+        url_specific_noise: list[str] | None = None,
     ) -> dict:
         fit_md = html_to_fit_markdown(fetch_result.html)
         prompt1_context = (memory.prompt1_context if memory else "") or "(no prior domain memory)"
@@ -50,6 +54,9 @@ class DiscoveryLLM:
             api_candidates_json=json.dumps(api_candidates or [], indent=2, default=str),
             link_candidates_json=json.dumps(link_candidates or [], indent=2, default=str),
             known_noise_patterns=", ".join(noise) or "(none)",
+            input_metadata=render_input_metadata(input_metadata),
+            negative_keywords=render_negative_keywords(negative_keywords),
+            url_specific_noise=", ".join(url_specific_noise or []) or "(none)",
         )
         response = await self._provider.complete(
             [{"role": "user", "content": prompt}],

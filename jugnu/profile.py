@@ -15,6 +15,7 @@ class ProfileMaturity(StrEnum):
 class ApiHints(BaseModel):
     confirmed_endpoints: list[str] = []
     confirmed_patterns: list[str] = []
+    blocked_endpoints: list[str] = []
     auth_required: bool = False
     pagination_style: str | None = None
     response_format: str | None = None
@@ -51,6 +52,14 @@ class LlmFieldMapping(BaseModel):
     synonyms: list[str] = []
     confidence: float = 0.0
     last_seen: str | None = None
+    # Replay metadata — populated by Spark.crystallizer from Prompt-2's
+    # field_mappings.api/dom blocks so Tier-1a can re-issue the request next
+    # run without calling the LLM.
+    api_url_pattern: str | None = None
+    json_paths: dict[str, str] = {}
+    response_envelope: str | None = None
+    dom_selector: str | None = None
+    success_count: int = 0
 
 
 class ScrapeProfile(BaseModel):

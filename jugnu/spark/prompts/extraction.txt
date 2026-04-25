@@ -22,6 +22,9 @@ Output schema (full): {output_schema_json}
 ## Field-level extraction hints (from SkillMemory)
 {field_extraction_hints_json}
 
+## Caller-supplied input metadata (authoritative — prefer over scraped values for overlapping fields)
+{input_metadata}
+
 ## Source
 URL: {url}
 Content type: {content_type}
@@ -31,6 +34,9 @@ Content type: {content_type}
 
 ## Caller-supplied custom instructions
 {custom_instructions}
+
+## Negative keywords (REJECT any record where any field value contains these substrings)
+{negative_keywords}
 
 Respond with JSON only (no markdown fences):
 {{

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from jugnu.spark.input_metadata import render_input_metadata, render_negative_keywords
 from jugnu.spark.prompts import render_template
 from jugnu.spark.provider import LLMProvider
 from jugnu.spark.skill_memory import SkillMemory
@@ -31,6 +32,8 @@ class MergeLLM:
         skill_name: str = "",
         output_fields: list[str] | None = None,
         minimum_fields: list[str] | None = None,
+        input_metadata: dict | None = None,
+        negative_keywords: list[str] | None = None,
     ) -> dict:
         if not new_records:
             return _passthrough(existing_records, new_records, response_cost=0.0)
@@ -71,6 +74,8 @@ class MergeLLM:
             field_extraction_hints_json=json.dumps(field_hints, indent=2, default=str),
             existing_records_json=json.dumps(existing_records[:50], indent=2, default=str),
             new_records_json=json.dumps(new_records[:50], indent=2, default=str),
+            input_metadata=render_input_metadata(input_metadata),
+            negative_keywords=render_negative_keywords(negative_keywords),
         )
         response = await self._provider.complete(
             [{"role": "user", "content": prompt}],

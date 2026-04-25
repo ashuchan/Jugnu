@@ -9,6 +9,9 @@ Keep the consolidated wisdom faithful to this user-stated goal:
 ## Output schema fields
 {output_fields}
 
+## Caller-supplied negative keywords (always honor — must remain in known_noise_patterns)
+{negative_keywords}
+
 ## Minimum required fields (success criterion the consolidated memory must serve)
 {minimum_fields}
 

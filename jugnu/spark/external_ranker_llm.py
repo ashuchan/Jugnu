@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from jugnu.spark.input_metadata import render_input_metadata, render_negative_keywords
 from jugnu.spark.prompts import render_template
 from jugnu.spark.provider import LLMProvider
 from jugnu.spark.skill_memory import ImprovementSignal, SkillMemory
@@ -35,6 +36,8 @@ class ExternalRankerLLM:
         memory: SkillMemory | None = None,
         url: str = "",
         skill_name: str = "",
+        input_metadata: dict | None = None,
+        negative_keywords: list[str] | None = None,
     ) -> dict:
         if max_depth <= 0 or not external_links or not missing_fields:
             return {
@@ -59,6 +62,8 @@ class ExternalRankerLLM:
             max_depth=max_depth,
             known_noise_patterns=", ".join(noise) or "(none)",
             external_links_json=json.dumps(external_links, indent=2, default=str),
+            input_metadata=render_input_metadata(input_metadata),
+            negative_keywords=render_negative_keywords(negative_keywords),
         )
         response = await self._provider.complete(
             [{"role": "user", "content": prompt}],

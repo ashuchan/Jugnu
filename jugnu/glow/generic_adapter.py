@@ -34,11 +34,18 @@ class GenericAdapter(BaseAdapter):
         learned_api_patterns: Iterable[str] | None = None,
         noise_patterns: Iterable[str] | None = None,
     ) -> None:
+        # Per-URL blocked endpoints (gap 6) — learned from prior runs that this
+        # specific endpoint returns noise. Hands the list to KnownApiAdapter so
+        # it short-circuits before re-trying the noisy URL.
+        per_url_blocked = (
+            list(profile.api_hints.blocked_endpoints) if profile else []
+        )
         self._tiers: list[BaseAdapter] = [
             ProfileReplayAdapter(profile=profile),
             KnownApiAdapter(
                 learned_patterns=learned_api_patterns,
                 noise_patterns=noise_patterns,
+                blocked_endpoints=per_url_blocked,
             ),
             EmbeddedBlobAdapter(),
             JsonLdAdapter(),

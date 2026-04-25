@@ -6,6 +6,12 @@ You are Jugnu. You have exhausted internal sources. You may follow external link
 ## Extraction goal (general_instructions)
 {general_instructions}
 
+## Caller-supplied input metadata (authoritative facts about this URL)
+{input_metadata}
+
+## Negative keywords (substrings to downrank — never recommend a link matching these)
+{negative_keywords}
+
 ## Output schema fields
 {output_fields}
 

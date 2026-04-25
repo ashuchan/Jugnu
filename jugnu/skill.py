@@ -53,6 +53,38 @@ class JugnuSettings(BaseModel):
     memory_consolidation_smart_trigger_count: int = 3
 
 
+class ProxySettings(BaseModel):
+    """Declarative proxy configuration. Materialised into a ProxyProvider by
+    `jugnu.ember.proxy.build_proxy_provider_from_settings`.
+
+    Selection precedence at materialisation time:
+      1. enabled=False → no-proxy
+      2. brightdata_* fields populated → BrightDataProvider
+      3. rotating_servers populated → RotatingProxyProvider (health-scored)
+      4. server populated → StaticProxyProvider
+      5. otherwise → no-proxy
+    """
+
+    enabled: bool = True
+
+    # Static-proxy mode
+    server: str | None = None
+    username: str | None = None
+    password: str | None = None
+
+    # Rotating-pool mode (each entry may include user:pass@host:port)
+    rotating_servers: list[str] = []
+
+    # Bright Data mode (residential / datacenter)
+    brightdata_customer_id: str | None = None
+    brightdata_zone: str | None = None
+    brightdata_password: str | None = None
+    brightdata_host: str = "brd.superproxy.io"
+    brightdata_port: int = 22225
+    brightdata_country: str | None = None
+    brightdata_sticky_per_url: bool = True
+
+
 class Skill(BaseModel):
     name: str
     version: str = "1.0.0"
@@ -63,5 +95,6 @@ class Skill(BaseModel):
     vision_settings: VisionLLMSettings = Field(default_factory=VisionLLMSettings)
     screenshot_settings: ScreenshotSettings = Field(default_factory=ScreenshotSettings)
     jugnu_settings: JugnuSettings = Field(default_factory=JugnuSettings)
+    proxy_settings: ProxySettings = Field(default_factory=ProxySettings)
     custom_instructions: str = ""
     negative_keywords: list[str] = []

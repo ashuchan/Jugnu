@@ -4,6 +4,7 @@ import json
 
 from jugnu.contracts import FetchResult
 from jugnu.spark.content_cleaner import html_to_fit_markdown
+from jugnu.spark.input_metadata import render_input_metadata, render_negative_keywords
 from jugnu.spark.prompts import render_template
 from jugnu.spark.provider import LLMProvider
 from jugnu.spark.skill_memory import ImprovementSignal, SkillMemory
@@ -34,6 +35,8 @@ class ExtractionLLM:
         general_instructions: str = "",
         custom_instructions: str = "",
         skill_name: str = "",
+        input_metadata: dict | None = None,
+        negative_keywords: list[str] | None = None,
     ) -> dict:
         fit_md = html_to_fit_markdown(fetch_result.html)
         prompt2_context = (memory.prompt2_context if memory else "") or "(no prior domain memory)"
@@ -58,6 +61,8 @@ class ExtractionLLM:
             confirmed_field_synonyms_json=json.dumps(synonyms_filtered, indent=2, default=str),
             field_extraction_hints_json=json.dumps(hints_filtered, indent=2, default=str),
             custom_instructions=custom_instructions or "(none)",
+            input_metadata=render_input_metadata(input_metadata),
+            negative_keywords=render_negative_keywords(negative_keywords),
         )
         response = await self._provider.complete(
             [{"role": "user", "content": prompt}],
