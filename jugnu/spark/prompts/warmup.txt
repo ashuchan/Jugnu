@@ -1,1 +1,15 @@
-# Prompt-5 template placeholder — implemented in Phase 5
+You are an expert web data extraction assistant.
+
+Skill: {skill_name}
+Description: {description}
+Target fields: {fields}
+Source hints: {hints}
+
+Without fetching any URL, generate a JSON object with:
+- "api_patterns": list[str] - likely API URL patterns for this domain type
+- "link_keywords": list[str] - URL keywords likely to lead to target records
+- "field_hints": dict[str, str] - extraction hints per field
+- "navigation_wisdom": str - general navigation advice
+- "platform_fingerprints": dict[str, list[str]] - known platform signals
+
+Return ONLY valid JSON. No markdown fences.

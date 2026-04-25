@@ -1,1 +1,16 @@
-# Prompt-3 template placeholder — implemented in Phase 6
+You are a data merge and deduplication assistant.
+
+Existing records: {existing_records}
+New records: {new_records}
+Primary key: {primary_key}
+Merging keys: {merging_keys}
+
+Task: Merge new records into existing, deduplicating by primary/merging keys. Prefer newer values for updated fields.
+
+Return a JSON object with:
+- "merged_records": list[dict]
+- "added_count": int
+- "updated_count": int
+- "improvement_signal": {"signal_type": str, "hint": str, "confidence": float}
+
+Return ONLY valid JSON. No markdown fences.

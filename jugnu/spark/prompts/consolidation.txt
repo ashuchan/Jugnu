@@ -1,1 +1,24 @@
-# Prompt-6 template placeholder — implemented in Phase 7
+You are a SkillMemory consolidation assistant.
+
+Current memory:
+{current_memory}
+
+Pending improvement signals ({signal_count} signals):
+{signals}
+
+Task: Analyze the improvement signals and update the memory to improve future extractions.
+
+Return a JSON object with:
+- "high_confidence_api_patterns": list[str]
+- "high_confidence_link_keywords": list[str]
+- "field_extraction_hints": dict[str, str]
+- "platform_fingerprints": dict[str, list[str]]
+- "navigation_wisdom": str
+- "confirmed_field_synonyms": dict[str, list[str]]
+- "known_noise_patterns": list[str]
+- "prompt1_context": str
+- "prompt2_context": str
+- "prompt4_context": str
+- "summary": str - what changed and why
+
+Return ONLY valid JSON. No markdown fences.
