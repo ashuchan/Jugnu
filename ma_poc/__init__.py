@@ -1,1 +1,0 @@
-# Jugnu scraping pipeline package.
