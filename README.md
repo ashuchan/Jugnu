@@ -1,78 +1,129 @@
-# Jugnu 🪲
+# Jugnu
 
 **Self-learning web crawler for domain-specific data extraction.**
 
-Jugnu (Urdu: firefly) is a Python library that learns to extract structured data from any website
-domain. It uses a six-prompt LLM architecture (via litellm) that grows smarter with every URL it
-processes — reducing LLM cost over time via `SkillMemory`.
-
-## Quickstart
-
-```python
-import asyncio
-from jugnu import Jugnu, Skill, CrawlInput
-from jugnu.skill import OutputSchema, SourceHint, LiteLLMSettings
-
-skill = Skill(
-    name="apartment_availability",
-    version="1.0",
-    description="Extract unit-level rent from apartment websites",
-    output_schema=OutputSchema(
-        fields=["unit_id", "rent_low", "bedrooms", "available_date"],
-        minimum_fields=["rent_low", "bedrooms"],
-        primary_key="unit_id",
-        merging_keys=["unit_id"],
-    ),
-    general_instructions="Extract all available apartment units. Minimum: rent and bedrooms.",
-    source_hints=[SourceHint(platform="rentcafe", api_patterns=["/api/getApartments"])],
-    llm=LiteLLMSettings(model="openai/gpt-4o-mini"),
-)
-
-async def main():
-    jugnu = Jugnu(skill=skill)
-    results = await jugnu.crawl({"https://example.com": CrawlInput()})
-    for url, blink in results.items():
-        print(f"{url}: {len(blink.records)} records, tier={blink.tier_used}")
-        # persist for next run:
-        # store.save_skill_memory(skill.name, blink.llm_profile)
-        # store.save_scrape_profile(url, blink.scrape_profile)
-
-asyncio.run(main())
-```
-
-## Module Map (firefly metaphor)
-
-| Module | Metaphor | Responsibility |
-|--------|----------|----------------|
-| `ember/` | Heat that ignites | Fetch: Playwright, stealth, proxy, rate limiter |
-| `lantern/` | Shape of the light | Discovery: link/API ranking, Prompt-1 |
-| `glow/` | Emitted light | Extraction: adapter registry, tier cascade, normalizer |
-| `spark/` | First flash | LLM: litellm, 6 prompts, SkillMemory, consolidator |
-| `Skill` | Behavioural instinct | User input: schema, hints, LLM settings |
-| `SkillMemory` | Pattern remembered | Living domain memory, self-improving across URLs |
-| `Blink` | Single flash | Per-URL result: records + profiles + cost |
-| `Swarm` | Coordinating fireflies | Concurrency: asyncio semaphore pool |
-
-## SkillMemory Lifecycle
-
-```
-Jugnu(skill=skill)         → SkillMemory v1  (Prompt-5 warmup, no page load)
-  crawl() URL #1–50        → pending_signals accumulates
-  URL #50 complete         → Prompt-6 consolidation → SkillMemory v2
-  run complete             → Prompt-6 run-end → SkillMemory vN
-  blink.llm_profile        → persist for next run
-
-Next run: Jugnu(skill=skill, skill_memory=persisted) → warmup SKIPPED
-```
+Jugnu is a domain-agnostic open-source Python library that extracts structured records from any website. You define a `Skill` (what to extract), Jugnu handles the rest — including learning from each crawl via `SkillMemory`.
 
 ## Installation
 
 ```bash
 pip install jugnu
-# from source:
-pip install -e ".[dev]"
+# or for development:
+git clone https://github.com/ashuchan/jugnu && cd jugnu
+pip install -e '.[dev]'
+pip install playwright && playwright install chromium
 ```
+
+## Quickstart
+
+```python
+import asyncio, json
+from jugnu import Jugnu, Skill, SkillMemory
+from jugnu.skill import OutputSchema, SourceHint
+from jugnu.contracts import CrawlInput
+
+# 1. Define your Skill
+skill = Skill(
+    name="product_catalog",
+    version="1.0.0",
+    description="Extract product listings",
+    output_schema=OutputSchema(
+        fields=["name", "price", "sku", "url"],
+        primary_key="sku",
+        minimum_fields=["name", "price"],
+    ),
+    source_hints=[SourceHint(link_keywords=["product", "item", "catalog"])],
+)
+
+async def main():
+    # 2. Optional: load persisted SkillMemory from previous run
+    # memory = SkillMemory.model_validate(json.load(open("memory.json")))
+    memory = None
+
+    jugnu = Jugnu(skill=skill, skill_memory=memory)
+
+    # 3. Warm-up (Prompt-5): seed SkillMemory WITHOUT fetching any URL
+    memory = await jugnu.warm_up()
+
+    # 4. Crawl
+    urls = {
+        "https://example-shop.com/products": CrawlInput(url="https://example-shop.com/products"),
+    }
+    results = await jugnu.crawl(urls)
+
+    # 5. Use results
+    for url, blink in results.items():
+        print(f"{url}: {len(blink.records)} records ({blink.status})")
+
+    # 6. Persist SkillMemory for next run
+    # json.dump(memory.model_dump(mode='json'), open("memory.json", "w"))
+
+asyncio.run(main())
+```
+
+## Module Map
+
+| Module | Firefly Name | Role |
+|--------|-------------|------|
+| `jugnu/ember/` | **Ember** | Fetch layer (Playwright, stealth, proxy, rate limiter) |
+| `jugnu/lantern/` | **Lantern** | Discovery (link ranking, API heuristics) |
+| `jugnu/glow/` | **Glow** | Extraction cascade (JSON-LD → API JSON → Microdata → DOM → LLM) |
+| `jugnu/spark/` | **Spark** | LLM teacher (6 prompts, SkillMemory, consolidation) |
+| `jugnu/skill.py` | **Skill** | User input: schema, hints, settings |
+| `jugnu/contracts.py` | — | Core types: Blink, CrawlStatus, CrawlInput, FetchResult |
+| `jugnu/profile.py` | — | ScrapeProfile: per-URL learned knowledge |
+
+## SkillMemory Lifecycle
+
+```
+Skill defined by user
+       │
+       ▼
+  warm_up()  ──── Prompt-5 (no URL fetch) ────► SkillMemory created
+       │
+       ▼
+  crawl(urls)
+    ├── per URL: Prompts 1, 2, 4 ──► ImprovementSignals appended
+    ├── every 50 signals: Prompt-6 batch consolidation
+    ├── 3 new platform confirms: Prompt-6 smart trigger
+    └── run end: Prompt-6 final consolidation
+       │
+       ▼
+  Blink.llm_profile = SkillMemory  (same object on every Blink)
+       │
+       ▼
+  Caller persists SkillMemory.json  ──► reused next run
+```
+
+## 6-Prompt Architecture
+
+| # | Name | When | Returns |
+|---|------|------|--------|
+| 1 | Discovery | Per URL (first page) | ranked_links, api_endpoints, improvement_signal |
+| 2 | Extraction | Per URL (content page) | records, confidence, improvement_signal |
+| 3 | External Rank | On-demand | ranked candidate URLs |
+| 4 | Merge | After multi-page | merged_records, improvement_signal |
+| 5 | Warmup | Once at session start | initial SkillMemory (no URL fetch) |
+| 6 | Consolidation | Batch/smart/run-end | updated SkillMemory |
+
+## Examples
+
+- `examples/real_estate/` — property listings
+- `examples/news/` — news articles
+- `examples/finance/` — stock/market data
+- `examples/sports/` — player stats
+
+## Running Tests
+
+```bash
+pytest . --ignore=examples --ignore=.jugnu -v
+```
+
+## Requirements
+
+- Python ≥ 3.11
+- playwright, pydantic ≥ 2.0, litellm, beautifulsoup4, markdownify
 
 ## License
 
-Apache 2.0
+Apache-2.0
