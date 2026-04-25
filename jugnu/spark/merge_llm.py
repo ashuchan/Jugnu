@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from jugnu.spark.provider import LLMProvider
 from jugnu.spark.skill_memory import ImprovementSignal, SkillMemory
@@ -17,9 +16,9 @@ class MergeLLM:
         self,
         existing_records: list[dict],
         new_records: list[dict],
-        primary_key: Optional[str],
+        primary_key: str | None,
         merging_keys: list[str],
-        memory: Optional[SkillMemory] = None,
+        memory: SkillMemory | None = None,
     ) -> dict:
         memory_ctx = memory.prompt4_context if memory else ""
         prompt = f"""You are a data merge and deduplication assistant.

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 from jugnu.profile import ScrapeProfile
 
@@ -27,7 +26,7 @@ class ProfileStore:
         except Exception:  # noqa: BLE001
             pass
 
-    def load(self, url_pattern: str) -> Optional[ScrapeProfile]:
+    def load(self, url_pattern: str) -> ScrapeProfile | None:
         try:
             path = self._path(url_pattern)
             if not path.exists():

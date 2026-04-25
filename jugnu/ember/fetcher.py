@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Optional
 
 from jugnu.contracts import FetchResult
 from jugnu.ember.captcha_detect import is_captcha_page
-from jugnu.ember.change_detector import has_content_changed
 from jugnu.ember.rate_limiter import RateLimiter
 from jugnu.ember.stealth import StealthConfig
 
@@ -18,9 +16,9 @@ class Ember:
 
     def __init__(
         self,
-        stealth: Optional[StealthConfig] = None,
-        rate_limiter: Optional[RateLimiter] = None,
-        proxy: Optional[str] = None,
+        stealth: StealthConfig | None = None,
+        rate_limiter: RateLimiter | None = None,
+        proxy: str | None = None,
         timeout_ms: int = _DEFAULT_TIMEOUT,
         max_retries: int = 2,
     ) -> None:
@@ -29,10 +27,10 @@ class Ember:
         self._proxy = proxy
         self._timeout_ms = timeout_ms
         self._max_retries = max_retries
-        self._browser: Optional[object] = None
-        self._playwright: Optional[object] = None
+        self._browser: object | None = None
+        self._playwright: object | None = None
 
-    async def __aenter__(self) -> "Ember":
+    async def __aenter__(self) -> Ember:
         await self._start_browser()
         return self
 
@@ -41,7 +39,7 @@ class Ember:
 
     async def fetch(self, url: str, screenshot: bool = False) -> FetchResult:
         """Fetch a URL, retrying up to max_retries times. Never raises."""
-        last_error: Optional[str] = None
+        last_error: str | None = None
         for attempt in range(self._max_retries + 1):
             if attempt > 0:
                 await asyncio.sleep(2 ** attempt)
@@ -57,7 +55,7 @@ class Ember:
 
     async def _fetch_once(self, url: str, screenshot: bool = False) -> FetchResult:
         try:
-            from playwright.async_api import async_playwright  # noqa: PLC0415
+            import playwright.async_api  # noqa: PLC0415, F401
         except ImportError:
             return await self._fetch_httpx(url)
 
@@ -80,7 +78,7 @@ class Ember:
             html = await page.content()
             status_code = response.status if response else 0
             headers = dict(response.headers) if response else {}
-            shot: Optional[bytes] = None
+            shot: bytes | None = None
             if screenshot:
                 shot = await page.screenshot(full_page=True)
             latency = (time.monotonic() - start) * 1000
@@ -144,9 +142,9 @@ class Ember:
     async def _close_browser(self) -> None:
         try:
             if self._browser:
-                await self._browser.close()
+                await self._browser.close()  # type: ignore[attr-defined]
             if self._playwright:
-                await self._playwright.stop()
+                await self._playwright.stop()  # type: ignore[attr-defined]
         except Exception:  # noqa: BLE001
             pass
         finally:

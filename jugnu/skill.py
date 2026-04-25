@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
 from pydantic import BaseModel, Field
 
 
@@ -31,14 +30,14 @@ class ScreenshotSettings(BaseModel):
 
 class OutputSchema(BaseModel):
     fields: list[str]
-    primary_key: Optional[str] = None
+    primary_key: str | None = None
     merging_keys: list[str] = []
     minimum_fields: list[str]
     json_schema: dict = Field(default_factory=dict)
 
 
 class SourceHint(BaseModel):
-    platform: Optional[str] = None
+    platform: str | None = None
     api_patterns: list[str] = []
     link_keywords: list[str] = []
     dom_selectors: dict[str, str] = {}

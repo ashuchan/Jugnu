@@ -30,7 +30,7 @@ class StealthConfig:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         }
 
-    async def apply_evasions(self, page: "Page") -> None:
+    async def apply_evasions(self, page: Page) -> None:
         try:
             await page.add_init_script(_EVASION_SCRIPT)
         except Exception:  # noqa: BLE001

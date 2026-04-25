@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from jugnu.contracts import FetchResult
 from jugnu.lantern.api_heuristics import looks_like_api_endpoint
 from jugnu.lantern.link_extractor import extract_api_urls, extract_links
@@ -26,7 +24,7 @@ class Lantern:
     def discover(
         self,
         fetch_result: FetchResult,
-    ) -> "DiscoveryResult":
+    ) -> DiscoveryResult:
         html = fetch_result.html
         base = fetch_result.url
 

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from jugnu.spark.provider import LLMProvider
-from jugnu.spark.skill_memory import ImprovementSignal, SkillMemory
+from jugnu.spark.skill_memory import SkillMemory
 
 
 class ExternalRankerLLM:
@@ -17,7 +16,7 @@ class ExternalRankerLLM:
         self,
         candidate_urls: list[str],
         target_description: str,
-        memory: Optional[SkillMemory] = None,
+        memory: SkillMemory | None = None,
     ) -> dict:
         memory_ctx = ""
         if memory:

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from jugnu.contracts import Blink, CrawlStatus
 
@@ -10,8 +9,8 @@ from jugnu.contracts import Blink, CrawlStatus
 @dataclass
 class CrawlMetrics:
     skill_name: str = ""
-    started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    completed_at: Optional[str] = None
+    started_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    completed_at: str | None = None
     total_urls: int = 0
     succeeded: int = 0
     failed: int = 0
@@ -27,9 +26,9 @@ class CrawlMetrics:
         results: dict[str, Blink],
         skill_name: str = "",
         dlq_size: int = 0,
-    ) -> "CrawlMetrics":
+    ) -> CrawlMetrics:
         m = cls(skill_name=skill_name)
-        m.completed_at = datetime.now(timezone.utc).isoformat()
+        m.completed_at = datetime.now(UTC).isoformat()
         m.total_urls = len(results)
         m.dlq_size = dlq_size
         total_conf = 0.0

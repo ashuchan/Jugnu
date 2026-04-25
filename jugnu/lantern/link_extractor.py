@@ -11,7 +11,7 @@ def extract_links(base_url: str, html: str) -> list[str]:
     try:
         soup = BeautifulSoup(html, "lxml")
         for tag in soup.find_all("a", href=True):
-            href = tag["href"].strip()
+            href = str(tag["href"]).strip()
             if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
                 continue
             abs_url = urljoin(base_url, href)

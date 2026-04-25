@@ -48,7 +48,7 @@ class LLMProvider:
             return {"content": "", "cost_usd": 0.0, "error": str(exc)}
 
     @classmethod
-    def from_settings(cls, settings: object) -> "LLMProvider":
+    def from_settings(cls, settings: object) -> LLMProvider:
         return cls(
             model=getattr(settings, "model", "claude-3-5-sonnet-20241022"),
             temperature=getattr(settings, "temperature", 0.0),

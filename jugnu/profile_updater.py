@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from jugnu.profile import ProfileMaturity, ScrapeProfile
 from jugnu.spark.skill_memory import ImprovementSignal
@@ -18,7 +17,7 @@ class ProfileUpdater:
         for signal in signals:
             self._apply_one(profile, signal)
         profile.stats.total_crawls += 1
-        profile.updated_at = datetime.now(timezone.utc).isoformat()
+        profile.updated_at = datetime.now(UTC).isoformat()
         profile.maturity = self._compute_maturity(profile)
         return profile
 
@@ -62,5 +61,5 @@ class ProfileUpdater:
         stats.avg_latency_ms = (
             (stats.avg_latency_ms * (n - 1) + latency_ms) / n
         )
-        stats.last_crawl_timestamp = datetime.now(timezone.utc).isoformat()
+        stats.last_crawl_timestamp = datetime.now(UTC).isoformat()
         return profile

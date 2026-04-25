@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from jugnu.profile import ScrapeProfile
@@ -23,7 +23,7 @@ class CrawlStatus(StrEnum):
 @dataclass(frozen=True)
 class CrawlInput:
     url: str
-    seed_url: Optional[str] = None
+    seed_url: str | None = None
     carry_forward_records: list[dict] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
 
@@ -38,8 +38,8 @@ class FetchResult:
     redirect_chain: list[str] = field(default_factory=list)
     response_headers: dict = field(default_factory=dict)
     latency_ms: float = 0.0
-    error: Optional[str] = None
-    screenshot: Optional[bytes] = None
+    error: str | None = None
+    screenshot: bytes | None = None
 
     @property
     def success(self) -> bool:
@@ -51,8 +51,8 @@ class AdapterResult:
     records: list[dict] = field(default_factory=list)
     tier_used: str = ""
     confidence: float = 0.0
-    raw_payload: Optional[str] = None
-    error: Optional[str] = None
+    raw_payload: str | None = None
+    error: str | None = None
     llm_cost_usd: float = 0.0
     llm_interactions: list[dict] = field(default_factory=list)
 
@@ -62,8 +62,8 @@ class Blink:
     url: str
     status: CrawlStatus
     records: list[dict]
-    scrape_profile: Optional["ScrapeProfile"] = None
-    llm_profile: Optional["SkillMemory"] = None
+    scrape_profile: ScrapeProfile | None = None
+    llm_profile: SkillMemory | None = None
     tier_used: str = ""
     confidence: float = 0.0
     carry_forward_days: int = 0

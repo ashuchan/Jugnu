@@ -84,7 +84,7 @@ def test_build_report():
         ),
     }
     report = build_report(results, skill_name="test")
-    assert "Total records extracted: 2" in report
+    assert "**Total records extracted:** 2" in report
     assert "https://example.com" in report
 
 

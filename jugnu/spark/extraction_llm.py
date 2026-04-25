@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from jugnu.contracts import FetchResult
 from jugnu.spark.content_cleaner import html_to_fit_markdown
@@ -19,7 +18,7 @@ class ExtractionLLM:
         self,
         fetch_result: FetchResult,
         fields: list[str],
-        memory: Optional[SkillMemory] = None,
+        memory: SkillMemory | None = None,
         custom_instructions: str = "",
     ) -> dict:
         fit_md = html_to_fit_markdown(fetch_result.html)

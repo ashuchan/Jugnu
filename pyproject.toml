@@ -30,20 +30,19 @@ dev = [
 ]
 
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.backends.legacy:build"
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["jugnu*"]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "--ignore=examples --ignore=.jugnu"
 
 [tool.mypy]
-strict = true
 python_version = "3.11"
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100

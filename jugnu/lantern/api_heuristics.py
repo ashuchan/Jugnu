@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from urllib.parse import urlparse
 
 _API_PATH_PATTERNS = [
     re.compile(r"/api/"),

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from jugnu.spark.provider import LLMProvider
-from jugnu.spark.skill_memory import ConsolidationLogEntry, ImprovementSignal, SkillMemory
+from jugnu.spark.skill_memory import ConsolidationLogEntry, SkillMemory
 
 
 class MemoryConsolidator:
@@ -95,7 +94,7 @@ Return ONLY valid JSON. No markdown fences."""
             memory_version_before=version_before,
             memory_version_after=memory.memory_version,
             cost_usd=cost,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             summary=summary,
         )
         memory.consolidation_log.append(log_entry)

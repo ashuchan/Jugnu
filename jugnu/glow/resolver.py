@@ -3,7 +3,6 @@ from __future__ import annotations
 from jugnu.contracts import AdapterResult, FetchResult
 from jugnu.glow.adapter_registry import AdapterRegistry
 from jugnu.glow.generic_adapter import GenericAdapter
-from jugnu.glow.platform_detector import detect_platform
 
 
 class GlowResolver:
@@ -21,8 +20,6 @@ class GlowResolver:
         fetch_result: FetchResult,
         schema_fields: list[str],
     ) -> AdapterResult:
-        platform = detect_platform(fetch_result.html, fetch_result.url)
-
         # Try registered adapters first (sorted by tier)
         for adapter in self._registry.all_adapters():
             try:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Optional
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel
 
 
 class ImprovementSignal(BaseModel):
@@ -10,11 +10,11 @@ class ImprovementSignal(BaseModel):
     url: str = ""
     field_name: str = ""
     hint: str = ""
-    platform: Optional[str] = None
+    platform: str | None = None
     confidence: float = 0.5
     prompt_source: str = ""
     raw_context: str = ""
-    timestamp: Optional[str] = None
+    timestamp: str | None = None
 
 
 class ConsolidationLogEntry(BaseModel):
@@ -24,7 +24,7 @@ class ConsolidationLogEntry(BaseModel):
     memory_version_before: int = 0
     memory_version_after: int = 0
     cost_usd: float = 0.0
-    timestamp: Optional[str] = None
+    timestamp: str | None = None
     summary: str = ""
 
 
@@ -53,7 +53,7 @@ class SkillMemory(BaseModel):
         return hashlib.sha256(f"{skill_name}::{skill_version}".encode()).hexdigest()[:16]
 
     @classmethod
-    def create_for_skill(cls, skill_name: str, skill_version: str) -> "SkillMemory":
+    def create_for_skill(cls, skill_name: str, skill_version: str) -> SkillMemory:
         return cls(
             skill_name=skill_name,
             skill_version=skill_version,

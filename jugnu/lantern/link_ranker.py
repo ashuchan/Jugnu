@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from urllib.parse import urlparse
 
 
@@ -25,7 +24,7 @@ def _score_url(url: str, keywords: list[str], neg_keywords: list[str]) -> float:
     lower = url.lower()
     # Penalise for negative keywords
     if any(nk in lower for nk in neg_keywords):
-        return 0.0
+        return -1.0
     # Reward for positive keyword hits
     hits = sum(1 for kw in keywords if kw.lower() in lower)
     if not keywords:

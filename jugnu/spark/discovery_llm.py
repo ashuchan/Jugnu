@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from jugnu.contracts import FetchResult
 from jugnu.spark.content_cleaner import html_to_fit_markdown
@@ -19,7 +18,7 @@ class DiscoveryLLM:
         self,
         fetch_result: FetchResult,
         target_description: str,
-        memory: Optional[SkillMemory] = None,
+        memory: SkillMemory | None = None,
     ) -> dict:
         fit_md = html_to_fit_markdown(fetch_result.html)
         memory_ctx = _memory_context(memory, "prompt1")
@@ -32,7 +31,8 @@ Page content (fit markdown):
 Memory context:
 {memory_ctx}
 
-Task: Analyze this page and identify the best links/endpoints to crawl next to find {target_description}.
+Task: Analyze this page and identify the best links/endpoints to crawl next
+to find {target_description}.
 
 Return a JSON object with:
 - "ranked_links": list of {{"url": str, "score": float, "reason": str}}
@@ -76,7 +76,7 @@ def _parse_discovery(response: dict, url: str) -> dict:
     return result
 
 
-def _memory_context(memory: Optional[SkillMemory], prompt_key: str) -> str:
+def _memory_context(memory: SkillMemory | None, prompt_key: str) -> str:
     if memory is None:
         return ""
     ctx = getattr(memory, f"{prompt_key}_context", "")

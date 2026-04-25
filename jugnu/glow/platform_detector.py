@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import re
-from typing import Optional
-
 _PLATFORM_SIGNATURES: dict[str, list[str]] = {
     "wordpress": ["wp-content", "wp-json", "wp-includes", "/wp/"],
     "shopify": ["cdn.shopify.com", "shopify.com/s/files", "Shopify.theme"],
@@ -20,7 +17,7 @@ _PLATFORM_SIGNATURES: dict[str, list[str]] = {
 }
 
 
-def detect_platform(html: str, url: str = "") -> Optional[str]:
+def detect_platform(html: str, url: str = "") -> str | None:
     combined = (html + url).lower()
     for platform, signals in _PLATFORM_SIGNATURES.items():
         if any(sig.lower() in combined for sig in signals):

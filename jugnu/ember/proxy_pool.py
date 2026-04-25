@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-from typing import Optional
 
 
 class ProxyPool:
@@ -11,7 +10,7 @@ class ProxyPool:
         self._proxies = proxies or []
         self._cycle = itertools.cycle(self._proxies) if self._proxies else None
 
-    def next(self) -> Optional[str]:
+    def next(self) -> str | None:
         if self._cycle is None:
             return None
         try:

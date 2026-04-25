@@ -5,7 +5,7 @@ from jugnu.contracts import Blink
 
 def build_report(results: dict[str, Blink], skill_name: str = "") -> str:
     lines: list[str] = [
-        f"# Jugnu Crawl Report",
+        "# Jugnu Crawl Report",
         f"Skill: {skill_name}",
         f"URLs crawled: {len(results)}",
         "",

@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import json
-import re
-from typing import Optional
 
 from jugnu.spark.provider import LLMProvider
-from jugnu.spark.skill_memory import ImprovementSignal, SkillMemory
+from jugnu.spark.skill_memory import SkillMemory
 
 
 class WarmupOrchestrator:
@@ -21,7 +19,7 @@ class WarmupOrchestrator:
         skill_description: str,
         output_fields: list[str],
         source_hints: list[dict],
-        existing_memory: Optional[SkillMemory] = None,
+        existing_memory: SkillMemory | None = None,
     ) -> SkillMemory:
         if existing_memory and not existing_memory.is_stale_for(
             _SkillProxy(skill_name, skill_version)

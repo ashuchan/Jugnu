@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
 
 from jugnu.contracts import Blink, CrawlInput, CrawlStatus
 from jugnu.dlq import DeadLetterQueue
 from jugnu.ember.fetcher import Ember
 from jugnu.ember.rate_limiter import RateLimiter
 from jugnu.glow.resolver import GlowResolver
-from jugnu.lantern.discovery import Lantern
 from jugnu.profile import ScrapeProfile
 from jugnu.profile_store import ProfileStore
 from jugnu.profile_updater import ProfileUpdater
@@ -18,7 +16,6 @@ from jugnu.spark.extraction_llm import ExtractionLLM
 from jugnu.spark.provider import LLMProvider
 from jugnu.spark.skill_memory import ImprovementSignal, SkillMemory
 from jugnu.spark.warmup import WarmupOrchestrator
-from jugnu.validation.cross_run_sanity import sanity_check
 from jugnu.validation.identity_fallback import assign_identities
 from jugnu.validation.schema_gate import passes_schema_gate
 
@@ -29,8 +26,8 @@ class Jugnu:
     def __init__(
         self,
         skill: Skill,
-        skill_memory: Optional[SkillMemory] = None,
-        profile_store: Optional[ProfileStore] = None,
+        skill_memory: SkillMemory | None = None,
+        profile_store: ProfileStore | None = None,
     ) -> None:
         self._skill = skill
         self._memory = skill_memory
@@ -89,7 +86,8 @@ class Jugnu:
             fetch_result = await ember.fetch(url)
 
             if not fetch_result.success:
-                if self._skill.jugnu_settings.carry_forward_on_failure and inp.carry_forward_records:
+                carry = self._skill.jugnu_settings.carry_forward_on_failure
+                if carry and inp.carry_forward_records:
                     return Blink(
                         url=url,
                         status=CrawlStatus.CARRY_FORWARD,
