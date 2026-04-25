@@ -97,14 +97,18 @@ Skill defined by user
 
 ## 6-Prompt Architecture
 
-| # | Name | When | Returns |
-|---|------|------|--------|
-| 1 | Discovery | Per URL (first page) | ranked_links, api_endpoints, improvement_signal |
-| 2 | Extraction | Per URL (content page) | records, confidence, improvement_signal |
-| 3 | External Rank | On-demand | ranked candidate URLs |
-| 4 | Merge | After multi-page | merged_records, improvement_signal |
-| 5 | Warmup | Once at session start | initial SkillMemory (no URL fetch) |
-| 6 | Consolidation | Batch/smart/run-end | updated SkillMemory |
+| # | Name | When | Inputs | Returns |
+|---|------|------|--------|--------|
+| 1 | Discovery | Per URL — after fetch, before extraction | `prompt1_context`, `general_instructions`, `output_fields`, `minimum_fields`, `known_noise_patterns`, candidate APIs/links | `ranked_apis`, `ranked_links`, `improvement_signal` |
+| 2 | Extraction | Per URL — when deterministic tiers fail | `prompt2_context`, `general_instructions`, `output_schema`, `minimum_fields`, `confirmed_field_synonyms`, fit_markdown | `records`, `field_mappings`, `improvement_signal` |
+| 3 | Merge | When `CrawlInput.previous_records` is non-empty AND new records were extracted | `general_instructions`, `primary_key`, `merging_keys`, existing & new records | `merge_decisions`, `merged_records` |
+| 4 | External Rank | When `minimum_fields` are still missing AND `max_external_depth > 0` | `prompt4_context`, `general_instructions`, `missing_fields`, `known_noise_patterns`, external links | `ranked_external_links`, `improvement_signal` |
+| 5 | Warmup | Once at session start (or on stale memory) — no URL fetched | `general_instructions`, `output_fields`, `minimum_fields`, `source_hints` | full initial SkillMemory including `prompt1_context`, `prompt2_context`, `prompt4_context` |
+| 6 | Consolidation | Every N URLs (batch), 3+ new-platform confirmations (smart), or run end | current SkillMemory snapshot, accumulated `improvement_signals`, batch stats | rewritten SkillMemory + log entry |
+
+Every prompt template lives in `jugnu/spark/prompts/*.txt` and is rendered by
+`render_template()`. Prompts 1–4 must always return an `improvement_signal`;
+those signals accumulate in `SkillMemory.pending_signals` and feed Prompt-6.
 
 ## Examples
 

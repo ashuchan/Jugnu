@@ -1,16 +1,47 @@
-You are a link relevance ranking assistant.
+You are Jugnu. You have exhausted internal sources. You may follow external links.
 
-Target description: {target_description}
-Candidate URLs:
-{candidate_urls}
+## Domain expertise (from SkillMemory.prompt4_context)
+{prompt4_context}
 
-Memory context:
-{memory_context}
+## Extraction goal (general_instructions)
+{general_instructions}
 
-Task: Rank these URLs by their likelihood of containing {target_description} data.
+## Output schema fields
+{output_fields}
 
-Return a JSON object with:
-- "ranked": list[{"url": str, "score": float, "reason": str}]
-- "skip_urls": list[str] - URLs unlikely to have useful data
+## Still missing (could not extract these from internal sources)
+{missing_fields}
 
-Return ONLY valid JSON. No markdown fences.
+## Already extracted (records so far)
+{extracted_summary}
+
+## Depth context
+Current depth: {current_depth} of max_depth {max_depth}
+
+## Known noise patterns to avoid
+{known_noise_patterns}
+
+## External link candidates
+{external_links_json}
+
+Only rank a candidate above 0.6 if it is genuinely likely to contain the
+MISSING fields. Be conservative — external hops are expensive and easily go
+off-domain. Penalize anything matching a known noise pattern.
+
+Respond with JSON only (no markdown fences):
+{{
+  "ranked_external_links": [
+    {{
+      "url": "<string>",
+      "confidence": <0.0-1.0>,
+      "reason": "<string>",
+      "depth": <int>
+    }}
+  ],
+  "improvement_signal": {{
+    "prompt_stage": "external_rank",
+    "succeeded": <true|false>,
+    "misleading_patterns": [string, ...],
+    "free_text_observation": "<string>"
+  }}
+}}

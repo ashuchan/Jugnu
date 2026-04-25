@@ -1,19 +1,61 @@
-You are a structured data extraction assistant.
+You are Jugnu. Extract structured records from the content below.
 
+CRITICAL: Also return field_mappings (JSON paths or CSS selectors) so future
+extractions can be done deterministically without calling you again.
+
+## Domain expertise (from SkillMemory.prompt2_context)
+{prompt2_context}
+
+## Extraction goal (general_instructions)
+{general_instructions}
+
+## Output schema
+All fields: {output_fields}
+Output schema (full): {output_schema_json}
+
+## Minimum required fields (these MUST be non-null for a record to count as success)
+{minimum_fields}
+
+## Known field synonyms (use these to find fields by alternate names)
+{confirmed_field_synonyms_json}
+
+## Field-level extraction hints (from SkillMemory)
+{field_extraction_hints_json}
+
+## Source
 URL: {url}
-Target fields: {fields}
-Page content (fit markdown):
+Content type: {content_type}
+
+## Content (fit_markdown preprocessed; never raw HTML)
 {fit_markdown}
 
-Memory context:
-{memory_context}
+## Caller-supplied custom instructions
+{custom_instructions}
 
-Task: Extract all records matching the target fields from the page content.
-
-Return a JSON object with:
-- "records": list[dict] - extracted records
-- "confidence": float - 0.0 to 1.0
-- "platform": str or null
-- "improvement_signal": {"signal_type": str, "field_name": str, "hint": str, "confidence": float}
-
-Return ONLY valid JSON. No markdown fences.
+Respond with JSON only (no markdown fences):
+{{
+  "records": [{{ "<field>": <value>, ..., "confidence": <0.0-1.0> }}, ...],
+  "field_mappings": {{
+    "api": {{
+      "url_pattern": "<string-or-empty>",
+      "json_paths": {{ "<field>": "<jsonpath>", ... }},
+      "response_envelope": "<string-or-empty>"
+    }},
+    "dom": {{
+      "container": "<css-selector-or-empty>",
+      "selectors": {{ "<field>": "<css-selector>", ... }}
+    }}
+  }},
+  "platform_confirmed": "<string-or-null>",
+  "field_mapping_notes": "<string>",
+  "improvement_signal": {{
+    "prompt_stage": "extraction",
+    "succeeded": <true|false>,
+    "tier_used": "<string>",
+    "api_patterns_that_worked": [string, ...],
+    "json_paths_that_worked": {{ "<field>": "<jsonpath>", ... }},
+    "dom_selectors_that_worked": {{ "<field>": "<selector>", ... }},
+    "field_synonyms_discovered": {{ "<field>": [string, ...], ... }},
+    "free_text_observation": "<string>"
+  }}
+}}

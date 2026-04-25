@@ -22,9 +22,17 @@ class CrawlStatus(StrEnum):
 
 @dataclass(frozen=True)
 class CrawlInput:
+    """Per-URL input. `previous_records` enables Prompt-3 merge mode; if non-empty
+    AND new records are extracted, the crawler invokes the merge LLM to decide
+    which new records map to existing ones. `scrape_profile` is the per-URL
+    learned profile from a prior run — None on first visit.
+    """
+
     url: str
     seed_url: str | None = None
     carry_forward_records: list[dict] = field(default_factory=list)
+    previous_records: list[dict] = field(default_factory=list)
+    scrape_profile: ScrapeProfile | None = None
     metadata: dict = field(default_factory=dict)
 
 

@@ -1,16 +1,46 @@
-You are a data merge and deduplication assistant.
+You are Jugnu. Match new records to existing records from a prior crawl.
 
-Existing records: {existing_records}
-New records: {new_records}
-Primary key: {primary_key}
-Merging keys: {merging_keys}
+## Domain context (general_instructions)
+{general_instructions}
 
-Task: Merge new records into existing, deduplicating by primary/merging keys. Prefer newer values for updated fields.
+## Output schema fields
+{output_fields}
 
-Return a JSON object with:
-- "merged_records": list[dict]
-- "added_count": int
-- "updated_count": int
-- "improvement_signal": {"signal_type": str, "hint": str, "confidence": float}
+## Minimum required fields
+{minimum_fields}
 
-Return ONLY valid JSON. No markdown fences.
+## Primary key (preferred match)
+{primary_key}
+
+## Merging keys (secondary match criteria)
+{merging_keys}
+
+## Known field synonyms (use to reconcile field-name drift between runs)
+{confirmed_field_synonyms_json}
+
+## Field-level extraction hints (from SkillMemory)
+{field_extraction_hints_json}
+
+## Existing records from prior run
+{existing_records_json}
+
+## New records from this run
+{new_records_json}
+
+For each new record, decide whether it matches an existing record (update) or is
+genuinely new (insert). Match by primary_key first, then by merging_keys, then
+by semantic equivalence informed by the domain context and the known field
+synonyms (the same field may appear under different names across runs). When
+unsure, prefer inserting a new record over silently merging.
+
+Respond with JSON only (no markdown fences):
+{{
+  "merge_decisions": [
+    {{
+      "new_record_index": <int>,
+      "existing_record_id": <string-or-null>,
+      "merge": <true|false>,
+      "reason": "<short reason>"
+    }}
+  ]
+}}

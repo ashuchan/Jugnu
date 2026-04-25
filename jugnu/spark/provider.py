@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from jugnu.observability.cost_ledger import CostLedger
+from jugnu.observability.trace import EventKind, emit
+
 
 class LLMProvider:
-    """Thin wrapper around litellm. Only imported by jugnu/spark/."""
+    """Thin wrapper around litellm. Only imported by jugnu/spark/.
+
+    Every call is logged to the trace stream and (if attached) the cost ledger.
+    """
 
     def __init__(
         self,
@@ -14,6 +20,7 @@ class LLMProvider:
         timeout: int = 60,
         max_retries: int = 2,
         extra_params: dict | None = None,
+        cost_ledger: CostLedger | None = None,
     ) -> None:
         self._model = model
         self._temperature = temperature
@@ -21,9 +28,16 @@ class LLMProvider:
         self._timeout = timeout
         self._max_retries = max_retries
         self._extra = extra_params or {}
+        self._ledger = cost_ledger
+
+    def attach_ledger(self, ledger: CostLedger | None) -> None:
+        self._ledger = ledger
 
     async def complete(self, messages: list[dict], **kwargs: Any) -> dict:
         """Call litellm and return the response dict. Never raises — returns error dict."""
+        stage = str(kwargs.pop("stage", "")) or "unspecified"
+        url = str(kwargs.pop("url", "") or "")
+        skill = str(kwargs.pop("skill", "") or "")
         try:
             import litellm  # noqa: PLC0415
 
@@ -43,8 +57,47 @@ class LLMProvider:
                 cost = litellm.completion_cost(completion_response=response)
             except Exception:  # noqa: BLE001
                 pass
+
+            in_tokens = 0
+            out_tokens = 0
+            try:
+                usage = getattr(response, "usage", None)
+                if usage is not None:
+                    in_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+                    out_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+            except Exception:  # noqa: BLE001
+                pass
+
+            emit(
+                EventKind.LLM_CALLED,
+                url=url,
+                skill=skill,
+                stage=stage,
+                model=self._model,
+                cost_usd=float(cost or 0.0),
+                input_tokens=in_tokens,
+                output_tokens=out_tokens,
+            )
+            if self._ledger is not None:
+                self._ledger.record(
+                    stage=stage,
+                    cost_usd=float(cost or 0.0),
+                    url=url,
+                    skill=skill,
+                    model=self._model,
+                    input_tokens=in_tokens,
+                    output_tokens=out_tokens,
+                )
             return {"content": content, "cost_usd": cost, "error": None}
         except Exception as exc:  # noqa: BLE001
+            emit(
+                EventKind.LLM_CALLED,
+                url=url,
+                skill=skill,
+                stage=stage,
+                model=self._model,
+                error=str(exc),
+            )
             return {"content": "", "cost_usd": 0.0, "error": str(exc)}
 
     @classmethod

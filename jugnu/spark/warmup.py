@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import json
 
+from jugnu.spark.prompts import render_template
 from jugnu.spark.provider import LLMProvider
 from jugnu.spark.skill_memory import SkillMemory
 
 
 class WarmupOrchestrator:
-    """Runs Prompt-5 once at session start — never fetches a URL."""
+    """Runs Prompt-5 once at session start — never fetches a URL.
+
+    Produces a SkillMemory v1 populated with high_confidence_api_patterns,
+    high_confidence_link_keywords, field_extraction_hints, platform_fingerprints,
+    navigation_wisdom, confirmed_field_synonyms, known_noise_patterns, and the
+    three context fragments (prompt1_context, prompt2_context, prompt4_context)
+    that downstream prompts inject verbatim.
+    """
 
     def __init__(self, provider: LLMProvider) -> None:
         self._provider = provider
@@ -19,6 +27,8 @@ class WarmupOrchestrator:
         skill_description: str,
         output_fields: list[str],
         source_hints: list[dict],
+        minimum_fields: list[str] | None = None,
+        general_instructions: str = "",
         existing_memory: SkillMemory | None = None,
     ) -> SkillMemory:
         if existing_memory and not existing_memory.is_stale_for(
@@ -26,55 +36,55 @@ class WarmupOrchestrator:
         ):
             return existing_memory
 
-        prompt = _build_warmup_prompt(
+        prompt = render_template(
+            "warmup",
             skill_name=skill_name,
-            description=skill_description,
-            fields=output_fields,
-            hints=source_hints,
+            skill_version=skill_version,
+            skill_description=skill_description or "(no description)",
+            general_instructions=general_instructions or "(no general_instructions provided)",
+            output_fields=", ".join(output_fields) if output_fields else "(none)",
+            minimum_fields=", ".join(minimum_fields or []) or "(none)",
+            source_hints_json=json.dumps(source_hints or [], indent=2),
         )
         response = await self._provider.complete(
-            [{"role": "user", "content": prompt}]
+            [{"role": "user", "content": prompt}],
+            stage="prompt5_warmup",
+            skill=skill_name,
         )
         memory = SkillMemory.create_for_skill(skill_name, skill_version)
-        memory.warmup_cost_usd = response.get("cost_usd", 0.0)
+        memory.warmup_cost_usd = float(response.get("cost_usd") or 0.0)
         if not response.get("error"):
-            _apply_warmup_response(memory, response["content"])
+            _apply_warmup_response(memory, response.get("content", ""))
         return memory
-
-
-def _build_warmup_prompt(
-    skill_name: str,
-    description: str,
-    fields: list[str],
-    hints: list[dict],
-) -> str:
-    return f"""You are an expert web data extraction assistant.
-
-Skill: {skill_name}
-Description: {description}
-Target fields: {', '.join(fields)}
-Source hints: {json.dumps(hints, indent=2)}
-
-Without fetching any URL, generate a JSON object with:
-- "api_patterns": list[str] — likely API URL patterns for this domain type
-- "link_keywords": list[str] — URL keywords likely to lead to target records
-- "field_hints": dict[str, str] — extraction hints per field
-- "navigation_wisdom": str — general navigation advice
-- "platform_fingerprints": dict[str, list[str]] — known platform signals
-
-Return ONLY valid JSON. No markdown fences."""
 
 
 def _apply_warmup_response(memory: SkillMemory, content: str) -> None:
     try:
         data = json.loads(content)
-        memory.high_confidence_api_patterns = data.get("api_patterns", [])
-        memory.high_confidence_link_keywords = data.get("link_keywords", [])
-        memory.field_extraction_hints = data.get("field_hints", {})
-        memory.navigation_wisdom = data.get("navigation_wisdom", "")
-        memory.platform_fingerprints = data.get("platform_fingerprints", {})
-    except Exception:  # noqa: BLE001
-        pass
+    except (json.JSONDecodeError, TypeError):
+        return
+    if not isinstance(data, dict):
+        return
+    memory.high_confidence_api_patterns = list(
+        data.get("high_confidence_api_patterns") or data.get("api_patterns") or []
+    )
+    memory.high_confidence_link_keywords = list(
+        data.get("high_confidence_link_keywords") or data.get("link_keywords") or []
+    )
+    memory.field_extraction_hints = dict(
+        data.get("field_extraction_hints") or data.get("field_hints") or {}
+    )
+    memory.platform_fingerprints = {
+        k: list(v) for k, v in (data.get("platform_fingerprints") or {}).items()
+    }
+    memory.navigation_wisdom = str(data.get("navigation_wisdom") or "")
+    memory.confirmed_field_synonyms = {
+        k: list(v) for k, v in (data.get("confirmed_field_synonyms") or {}).items()
+    }
+    memory.known_noise_patterns = list(data.get("known_noise_patterns") or [])
+    memory.prompt1_context = str(data.get("prompt1_context") or "")
+    memory.prompt2_context = str(data.get("prompt2_context") or "")
+    memory.prompt4_context = str(data.get("prompt4_context") or "")
 
 
 class _SkillProxy:

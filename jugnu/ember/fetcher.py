@@ -65,9 +65,10 @@ class Ember:
         start = time.monotonic()
         page = None
         try:
+            ua, headers = self._stealth.for_url(url)
             context = await self._browser.new_context(  # type: ignore[union-attr]
-                user_agent=self._stealth.user_agent,
-                extra_http_headers=self._stealth.extra_headers,
+                user_agent=ua,
+                extra_http_headers=headers,
                 proxy={"server": self._proxy} if self._proxy else None,
             )
             page = await context.new_page()
@@ -104,9 +105,11 @@ class Ember:
 
         start = time.monotonic()
         try:
+            ua, headers = self._stealth.for_url(url)
+            request_headers = {"User-Agent": ua, **headers}
             async with httpx.AsyncClient(
                 timeout=self._timeout_ms / 1000,
-                headers=self._stealth.extra_headers,
+                headers=request_headers,
                 follow_redirects=True,
             ) as client:
                 resp = await client.get(url)
